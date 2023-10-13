@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Keka Time Calculate</title>
+    <style>
+      .center {
+        /* border: 2px solid; */
+        margin: auto;
+        width: 50%;
+        padding: 10px;
+      }
+
+      .custom-textarea {
+        width: 300px;
+        height: 150px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        resize: none;
+        background-color: #f8f8f8;
+        box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      }
+
+      /* CSS for the textarea on hover */
+      .custom-textarea:hover {
+        border-color: #999;
+      }
+
+      /* CSS for the textarea when focused */
+      .custom-textarea:focus {
+        border-color: #007bff;
+        outline: none;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+      }
+
+      /* CSS for the textarea placeholder */
+      .custom-textarea::placeholder {
+        color: #999;
+      }
+      .custom-button {
+        display: block;
+        padding: 10px 20px;
+        font-size: 16px;
+        font-weight: bold;
+        text-align: center;
+        text-decoration: none;
+        background-color: #007bff;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background-color 0.2s ease-in-out;
+        margin-top: 10px;
+      }
+      .custom-button:hover {
+        background-color: #0056b3;
+      }
+      .error_time {
+        color: red;
+        font-size: 20px;
+        font-weight: 700;
+      }
+      .warning_time {
+        color: #ffc107;
+        font-size: 20px;
+        font-weight: 700;
+        text-align: center;
+      }
+      .success_time {
+        color: green;
+        font-size: 20px;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="center">
+      <h2>keka time calculator</h2>
+      <textarea
+        placeholder="copy from keka clock in and out time and paste here"
+        name="keka_times"
+        class="custom-textarea"
+        id="keka_times"
+        cols="30"
+        rows="10"
+      ></textarea>
+      <button id="btn_time_calculate" class="custom-button">
+        calculate now
+      </button>
+      <span id="missing_last_entry" style="margin-bottom: 10px"></span>
+      <span id="total_hours"> </span>
+    </div>
+  </body>
+  <script>
+    try {
+      const totalHoursTimeShift = 8;
+      const goToHome = "07:00 PM";
+      document
+        .getElementById("btn_time_calculate")
+        .addEventListener("click", calculateTimeKeka);
+
+      function calculateTimeKeka() {
+        const timeString = document.getElementById("keka_times").value.trim();
+        if (timeString == null || timeString == "") {
+          showMessage(
+            "<br> <span class='error_time'> Please paste the clock in-out value</span>"
+          );
+          return false;
+        }
+        const timeConvertArray = timeString.split("\n");
+
+        function validateTimes(timesArray) {
+          const timeRegex = /^(1[012]|0?[1-9]):[0-5][0-9]:[0-5][0-9] (AM|PM)$/i;
+          for (let i = 0; i < timesArray.length; i++) {
+            const time = timesArray[i];
+            if (time == "MISSING") {
+              continue;
+            } else if (!time.match(timeRegex)) {
+              return false;
+            }
+          }
+          return true; // All times are in the proper format
+        }
+        const isValid = validateTimes(timeConvertArray);
+        if (
+          !Array.isArray(timeConvertArray) ||
+          !isValid ||
+          timeConvertArray.length % 2 !== 0
+        ) {
+          showMessage(
+            "<br> <span class='error_time '> 😔 Please Enter Proper Time Format 😔 </span>"
+          );
+          return false;
+        }
+
+        //if last entry is missing then
+        const lastEntryMissing = timeConvertArray.slice(-1)[0];
+        if (lastEntryMissing === "MISSING") {
+          // current time
+          let time12Hour = getCurrentHourMinutesTimes();
+          timeConvertArray.splice(
+            timeConvertArray.indexOf(lastEntryMissing),
+            1,
+            time12Hour
+          );
+
+          document.getElementById(
+            "missing_last_entry"
+          ).innerHTML = `<br> <span class='warning_time badge'>  Last entry is missing so we consider current time ${time12Hour}  <br> Or You can remove the last missing entry Or add manually <br> hour:miniutes:second AM/PM format only. </span></br>`;
+        }
+
+        const totalDuration = calculateTotalDuration(timeConvertArray);
+
+        if (totalDuration.hours < totalHoursTimeShift) {
+          // return false;
+          let currentTime = getCurrentHourMinutesTimes();
+          // console.log(currentTime); //6:25:27 PM
+
+          let customMsg = `<br> <span class='error_time '>
+              </br>Total Working time: ${totalDuration.hours} hours, ${
+            totalDuration.minutes
+          } minutes, ${
+            totalDuration.seconds
+          } seconds <br> You can go home after : ${
+            totalHoursTimeShift - (totalDuration.hours + 1)
+          }  hours, ${60 - totalDuration.minutes} minutes, ${
+            60 - totalDuration.seconds
+          } seconds  </span>`;
+
+          showMessage(customMsg);
+          return false;
+        }
+
+        showMessage(
+          `</br> <span class='success_time' > 🚴🏻‍♂️ You can go home 🚴🏻‍♂️ <br> Your Total Working time: ${totalDuration.hours} hours, ${totalDuration.minutes} minutes, ${totalDuration.seconds} seconds </span>`
+        );
+      }
+
+      function calculateTotalDuration(times) {
+        let totalHours = 0;
+        let totalMinutes = 0;
+        let totalSeconds = 0;
+
+        for (let i = 0; i < times.length; i += 2) {
+          const clockIn = parseTime(times[i]);
+          const clockOut = parseTime(times[i + 1]);
+
+          const duration = clockOut - clockIn;
+
+          totalHours += Math.floor(duration / (1000 * 60 * 60));
+          totalMinutes += Math.floor(
+            (duration % (1000 * 60 * 60)) / (1000 * 60)
+          );
+          totalSeconds += Math.floor((duration % (1000 * 60)) / 1000);
+        }
+
+        if (totalSeconds >= 60) {
+          totalMinutes += Math.floor(totalSeconds / 60);
+          totalSeconds %= 60;
+        }
+        if (totalMinutes >= 60) {
+          totalHours += Math.floor(totalMinutes / 60);
+          totalMinutes %= 60;
+        }
+
+        return {
+          hours: totalHours,
+          minutes: totalMinutes,
+          seconds: totalSeconds,
+        };
+      }
+
+      function parseTime(time) {
+        const [hourStr, minuteStr, secondStr, meridiem] = time.split(/:|\s/);
+        let hours = parseInt(hourStr);
+        const minutes = parseInt(minuteStr);
+        const seconds = parseInt(secondStr);
+
+        if (meridiem === "PM" && hours !== 12) {
+          hours += 12;
+        } else if (meridiem === "AM" && hours === 12) {
+          hours = 0;
+        }
+
+        return new Date(0, 0, 0, hours, minutes, seconds);
+      }
+
+      function showMessage(msg) {
+        document.getElementById("total_hours").innerHTML = msg;
+      }
+
+      function getCurrentHourMinutesTimes() {
+        const currentTime = new Date();
+
+        // Get the hours, minutes, and seconds
+        let hours = currentTime.getHours();
+        let minutes = currentTime.getMinutes();
+        let seconds = currentTime.getSeconds();
+
+        const amOrPm = hours >= 12 ? "PM" : "AM";
+        const formattedHours = hours % 12 || 12;
+        const time12Hour = `${formattedHours}:${minutes}:${seconds} ${amOrPm}`;
+        return time12Hour;
+      }
+
+      function youCanGoHomeAtTime() {
+        let currentTimeOld = getCurrentHourMinutesTimes();
+
+        const currentTime = new Date();
+        const timeString = currentTimeOld;
+        const [hours, minutes, seconds] = timeString.split(":");
+    
+        currentTime.setHours(parseInt(hours, 10));
+        currentTime.setMinutes(parseInt(minutes, 10));
+        currentTime.setSeconds(parseInt(seconds, 10));
+
+        // Add hours, minutes, and seconds to the current time
+        currentTime.setHours(currentTime.getHours() + hours);
+        currentTime.setMinutes(currentTime.getMinutes() + minutes);
+        currentTime.setSeconds(currentTime.getSeconds() + seconds);
+
+        // Get the updated time
+        const updatedTime = currentTime.toLocaleTimeString("en-US");
+        return updatedTime;
+      }
+      youCanGoHomeAtTime();
+    } catch (error) {
+      console.log(error);
+    }
+  </script>
+</html>
